@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Brew Timer</title>
+<style>
+  :root{
+    --ink:#2b2420;
+    --paper:#f6f0e6;
+    --leaf:#3f6b4a;
+    --leaf-dark:#2c4d35;
+    --clay:#b5652f;
+    --clay-dark:#8f4f24;
+    --card:#fffaf1;
+    --line:#e2d5bf;
+    --done:#8a9a7e;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:var(--paper);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    color:var(--ink);
+    overscroll-behavior:none;
+    user-select:none;
+  }
+  .wrap{
+    max-width:480px;
+    margin:0 auto;
+    padding:28px 18px 40px;
+    min-height:100%;
+  }
+  header{
+    text-align:center;
+    margin-bottom:22px;
+  }
+  header .eyebrow{
+    font-size:12px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--leaf);
+    font-weight:700;
+    margin-bottom:4px;
+  }
+  header h1{
+    font-family:Georgia,'Times New Roman',serif;
+    font-size:30px;
+    margin:0;
+    font-weight:700;
+    letter-spacing:-0.01em;
+  }
+  .progress{
+    text-align:center;
+    font-size:13px;
+    color:#6b6055;
+    margin-bottom:22px;
+  }
+  .list{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .item{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:16px 18px;
+    display:flex;
+    align-items:center;
+    gap:14px;
+    position:relative;
+    overflow:hidden;
+    transition:transform .12s ease, box-shadow .12s ease, background .2s ease;
+    cursor:pointer;
+  }
+  .item:active{ transform:scale(0.98); }
+
+  .item .fill{
+    position:absolute;
+    left:0; top:0; bottom:0;
+    width:0%;
+    background:rgba(63,107,74,0.13);
+    transition:width 1s linear;
+    z-index:0;
+  }
+  .item.ringing .fill{ background:rgba(181,101,47,0.22); }
+  .item.done .fill{ width:100% !important; background:rgba(138,154,126,0.25); }
+
+  .checkbox{
+    flex:0 0 auto;
+    width:30px; height:30px;
+    border-radius:50%;
+    border:2px solid var(--leaf);
+    display:flex; align-items:center; justify-content:center;
+    z-index:1;
+    background:var(--card);
+    font-size:16px;
+    color:var(--leaf);
+    transition:all .2s ease;
+  }
+  .item.done .checkbox{
+    background:var(--done);
+    border-color:var(--done);
+    color:#fff;
+  }
+
+  .info{
+    flex:1 1 auto;
+    z-index:1;
+    min-width:0;
+  }
+  .name{
+    font-size:17px;
+    font-weight:700;
+    margin-bottom:2px;
+  }
+  .sub{
+    font-size:12px;
+    color:#8a7d6d;
+  }
+  .item.done .name{
+    color:#7a8a6f;
+    text-decoration:line-through;
+    text-decoration-color:#b7c2ac;
+  }
+
+  .time{
+    z-index:1;
+    font-variant-numeric:tabular-nums;
+    font-size:22px;
+    font-weight:700;
+    color:var(--clay);
+    min-width:64px;
+    text-align:right;
+  }
+  .item.ringing .time{
+    color:var(--clay-dark);
+    animation:pulse 1s infinite;
+  }
+  .item.done .time{ color:var(--done); font-size:15px; }
+
+  @keyframes pulse{
+    0%,100%{opacity:1;}
+    50%{opacity:.35;}
+  }
+
+  .item.ringing{
+    box-shadow:0 0 0 2px var(--clay);
+  }
+
+  .hint{
+    text-align:center;
+    font-size:12px;
+    color:#9a8f80;
+    margin-top:22px;
+    line-height:1.5;
+  }
+
+  .reset{
+    display:block;
+    margin:26px auto 0;
+    background:none;
+    border:1px solid var(--line);
+    color:#6b6055;
+    font-size:13px;
+    padding:10px 20px;
+    border-radius:999px;
+    cursor:pointer;
+  }
+  .reset:active{ background:var(--line); }
+
+  .banner{
+    text-align:center;
+    font-size:14px;
+    font-weight:700;
+    color:var(--leaf-dark);
+    background:#e7efe3;
+    border:1px solid #cfe0c8;
+    border-radius:12px;
+    padding:10px;
+    margin-bottom:18px;
+    display:none;
+  }
+  .banner.show{ display:block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Steep &amp; Sip</div>
+    <h1>Brew Timer</h1>
+  </header>
+
+  <div class="banner" id="banner">All steeped. Enjoy! 🍵</div>
+  <div class="progress" id="progress">0 of 5 done</div>
+
+  <div class="list" id="list"></div>
+
+  <div class="hint">Tap an item to start its timer.<br>Tap it again — running or ringing — to stop and check it off.</div>
+
+  <button class="reset" id="resetBtn">Reset all</button>
+</div>
+
+<script>
+const ITEMS = [
+  { id: 't1', name: 'Black Tea', seconds: 4*60 },
+  { id: 't2', name: 'Oolong Tea', seconds: 4*60 },
+  { id: 't3', name: 'Green Tea', seconds: 4*60 },
+  { id: 't4', name: 'Thai Tea', seconds: 4*60 },
+  { id: 'boba', name: 'Boba', seconds: 25*60 },
+];
+
+const state = ITEMS.map(it => ({
+  ...it,
+  remaining: it.seconds,
+  status: 'idle', // idle | running | ringing | done
+  intervalId: null,
+}));
+
+const listEl = document.getElementById('list');
+const progressEl = document.getElementById('progress');
+const bannerEl = document.getElementById('banner');
+
+let audioCtx = null;
+let ringingOsc = null;
+let ringingGain = null;
+
+function ensureAudio(){
+  if(!audioCtx){
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if(audioCtx.state === 'suspended'){ audioCtx.resume(); }
+}
+
+function startAlarm(){
+  ensureAudio();
+  stopAlarm();
+  ringingGain = audioCtx.createGain();
+  ringingGain.gain.value = 0.0001;
+  ringingGain.connect(audioCtx.destination);
+
+  ringingOsc = audioCtx.createOscillator();
+  ringingOsc.type = 'sine';
+  ringingOsc.frequency.value = 880;
+  ringingOsc.connect(ringingGain);
+  ringingOsc.start();
+
+  // beep pattern: on/off pulses
+  let t = audioCtx.currentTime;
+  ringingGain.gain.setValueAtTime(0.0001, t);
+  window._beepInterval = setInterval(() => {
+    if(!audioCtx || !ringingGain) return;
+    const now = audioCtx.currentTime;
+    ringingGain.gain.cancelScheduledValues(now);
+    ringingGain.gain.setValueAtTime(0.25, now);
+    ringingGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+  }, 500);
+}
+
+function stopAlarm(){
+  if(window._beepInterval){ clearInterval(window._beepInterval); window._beepInterval = null; }
+  if(ringingOsc){ try{ ringingOsc.stop(); }catch(e){} ringingOsc.disconnect(); ringingOsc = null; }
+  if(ringingGain){ ringingGain.disconnect(); ringingGain = null; }
+}
+
+function formatTime(sec){
+  const m = Math.floor(sec/60);
+  const s = sec%60;
+  return `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+function render(){
+  listEl.innerHTML = '';
+  state.forEach((it, idx) => {
+    const el = document.createElement('div');
+    el.className = 'item ' + it.status;
+    el.dataset.idx = idx;
+
+    const pct = it.status === 'done' ? 100 : Math.min(100, 100 * (1 - it.remaining / it.seconds));
+
+    el.innerHTML = `
+      <div class="fill" style="width:${it.status==='idle' ? 0 : pct}%"></div>
+      <div class="checkbox">${it.status === 'done' ? '✓' : ''}</div>
+      <div class="info">
+        <div class="name">${it.name}</div>
+        <div class="sub">${it.status === 'idle' ? formatTime(it.seconds) + ' — tap to start'
+          : it.status === 'running' ? 'steeping…'
+          : it.status === 'ringing' ? 'tap to stop'
+          : 'done'}</div>
+      </div>
+      <div class="time">${it.status === 'done' ? '✓' : formatTime(it.remaining)}</div>
+    `;
+    el.addEventListener('click', () => handleTap(idx));
+    listEl.appendChild(el);
+  });
+
+  const doneCount = state.filter(s => s.status === 'done').length;
+  progressEl.textContent = `${doneCount} of ${state.length} done`;
+  bannerEl.classList.toggle('show', doneCount === state.length);
+}
+
+function handleTap(idx){
+  ensureAudio();
+  const it = state[idx];
+
+  if(it.status === 'idle'){
+    it.status = 'running';
+    it.intervalId = setInterval(() => tick(idx), 1000);
+  } else if(it.status === 'running'){
+    clearInterval(it.intervalId);
+    it.intervalId = null;
+    it.status = 'idle';
+    it.remaining = it.seconds;
+  } else if(it.status === 'ringing'){
+    stopAlarm();
+    it.status = 'done';
+  } else if(it.status === 'done'){
+    it.status = 'idle';
+    it.remaining = it.seconds;
+  }
+  render();
+}
+
+function tick(idx){
+  const it = state[idx];
+  it.remaining -= 1;
+  if(it.remaining <= 0){
+    it.remaining = 0;
+    clearInterval(it.intervalId);
+    it.intervalId = null;
+    it.status = 'ringing';
+    startAlarm();
+  }
+  render();
+}
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  stopAlarm();
+  state.forEach(it => {
+    if(it.intervalId) clearInterval(it.intervalId);
+    it.intervalId = null;
+    it.remaining = it.seconds;
+    it.status = 'idle';
+  });
+  render();
+});
+
+render();
+
+// Keep screen from sleeping is not reliably available without wake-lock API permission prompts;
+// try wake lock if supported, fail silently otherwise.
+if('wakeLock' in navigator){
+  let wakeLock = null;
+  const requestWakeLock = async () => {
+    try{ wakeLock = await navigator.wakeLock.request('screen'); }catch(e){}
+  };
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'visible') requestWakeLock();
+  });
+  requestWakeLock();
+}
+</script>
+</body>
+</html>
